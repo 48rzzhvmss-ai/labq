@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لَبِق - نظام إدارة وحجز المواقف الذكي</title>
+    <!-- تضمين Tailwind CSS عبر CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- تضمين Font Awesome للايقونات -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* تعريف خط Almarai ودعم العربية */
+        @import url('https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Inter:wght@100..900&display=swap');
+        
+        :root {
+            --color-primary: #1e40af; /* Blue-700 */
+            --color-secondary: #f59e0b; /* Amber-500 */
+            --color-success: #10b981; /* Emerald-500 */
+            --color-card-bg: #f9fafb; /* Gray-50 */
+            --color-muted: #6b7280; /* Gray-500 */
+            --color-text: #1f2937; /* Gray-800 */
+        }
+
+        body {
+            font-family: 'Almarai', 'Inter', sans-serif;
+            color: var(--color-text);
+            background-color: white;
+            scroll-behavior: smooth;
+        }
+
+        /* تنسيقات إضافية مخصصة */
+        .text-gradient {
+            background-image: linear-gradient(to right, var(--color-primary), #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-fill-color: transparent;
+        }
+
+        .hero-gradient {
+            background-color: var(--color-primary);
+            background-image: linear-gradient(to bottom right, #3b82f6, var(--color-primary));
+        }
+        
+        .shadow-elevated {
+            box-shadow: 0 10px 15px -3px rgba(30, 64, 175, 0.1), 0 4px 6px -2px rgba(30, 64, 175, 0.05);
+        }
+
+        .shadow-soft {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-gradient {
+            background: linear-gradient(145deg, #ffffff, #f0f4f9);
+        }
+
+        .transition-smooth {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* تخصيص زر Tailwind */
+        .btn-lg {
+            padding: 1.25rem 2rem;
+            font-size: 1.125rem;
+            border-radius: 0.75rem;
+            font-weight: 700;
+        }
+
+        /* تنسيق النافذة المنبثقة (Modal) وإخفاء الصفحات غير النشطة */
+        .modal {
+            display: none; 
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .page-view {
+            display: none;
+        }
+        
+        /* تنسيق شريط التنقل الجانبي */
+        #sidebar {
+            width: 280px;
+            min-height: calc(100vh - 4rem); /* حساب ارتفاع الهيدر */
+            box-shadow: 5px 0 15px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .sidebar-item:hover, .sidebar-item.active {
+            background-color: #e5e7eb; /* gray-200 */
+        }
+        .sidebar-item.active {
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--color-primary)',
+                        secondary: 'var(--color-secondary)',
+                        success: 'var(--color-success)',
+                        card: 'var(--color-card-bg)',
+                        'muted-foreground': 'var(--color-muted)',
+                    },
+                    boxShadow: {
+                        elevated: 'var(--shadow-elevated)',
+                        soft: 'var(--shadow-soft)',
+                    }
+                }
+            }
+        }
+
+        // --- Mock Data and State Management ---
+        // بيانات مستخدم وهمية لأغراض المحاكاة
+        let mockUser = {
+            isLoggedIn: false,
+            name: "مستخدم لَبِق",
+            email: "test@labiq.sa",
+            licenseId: "1234567890",
+            vehicleRegId: "0987654321",
+            cars: [
+                { id: 'c1', name: 'سوناتا', manufacturer: 'هيونداي', model: '2022', year: '2022', color: 'أبيض', regId: 'REG-1', isSpecialNeeds: false, ownership: 'ملك', documentUrl: 'link' },
+                { id: 'c2', name: 'لاند كروزر', manufacturer: 'تويوتا', model: '2020', year: '2020', color: 'أسود', regId: 'REG-2', isSpecialNeeds: true, ownership: 'ملك', documentUrl: 'link_sp_needs' },
+            ],
+            bookings: [
+                // الحجز الحالي (قابل للإلغاء قبل ساعة على الأقل)
+                { id: 'b1', carId: 'c1', location: 'مستشفى طويق', spotType: 'Normal', date: '2026-01-01', startTime: '10:00', endTime: '11:00', status: 'Current', price: 5, timestamp: Date.now() + 3600000 * 5 }, 
+                // الحجز السابق
+                { id: 'b2', carId: 'c2', location: 'مول طويق', spotType: 'Disabled', date: '2025-11-15', startTime: '14:00', endTime: '16:00', status: 'Past', price: 0, timestamp: Date.now() - 3600000 * 24 * 3 }, 
+            ],
+            currentCarId: 'c1', // السيارة المختارة حالياً للحجز
+            currentBooking: null,
+            dashboardActiveTab: 'bookings' // التبويب النشط في لوحة التحكم
+        };
+        
+        const LOCATIONS = [
+            "مستشفى طويق", "فندق طويق", "ماركت طويق", "بنك طويق", "مول طويق", 
+            "مجمع مطاعم طويق", "مطار طويق", "أكاديمية طويق", "مدرسة الموهوبين التقنية"
+        ];
+
+        const PRICE_MAP = {
+            'VVIP': 20,
+            'VIP': 10,
+            'Normal': 5,
+            'Disabled': 0 // ذوي الاحتياجات
+        };
+
+        // --- General UI and Navigation Functions ---
+
+        // دالة التنقل الرئيسية
+        function showPage(pageId) {
+            document.querySelectorAll('.page-view').forEach(view => {
+                view.style.display = 'none';
+            });
+            const activePage = document.getElementById(pageId);
+            if (activePage) {
+                activePage.style.display = 'flex';
+                // تحديث عرض الهيدر
+                const header = document.getElementById('mainHeader');
+                header.style.display = (pageId === 'home-view' || pageId === 'signup-view') ? 'flex' : 'none';
+            }
+            window.scrollTo(0, 0); 
+            
+            // تهيئة بيانات الصفحات عند الانتقال إليها
+            if (pageId === 'dashboard-view') {
+                renderDashboard();
+            } else if (pageId === 'booking-view') {
+                initBookingForm();
+            }
+        }
+
+        // دالة لعرض رسالة مخصصة (تحل محل alert)
+        function showMessage(title, message, iconClass, duration = 3000) {
+            const modal = document.getElementById('myModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = message;
+            document.getElementById('modalIcon').className = `mb-4 text-5xl ${iconClass}`;
+            document.getElementById('modalConfirm').style.display = 'block';
+            modal.style.display = 'flex';
+            
+            if (duration > 0) {
+                setTimeout(closeModal, duration);
+            }
+        }
+
+        // دالة لإخفاء الرسالة المخصصة
+        function closeModal() {
+            document.getElementById('myModal').style.display = 'none';
+        }
+        
+        // --- Authentication Mockup ---
+        function handleSignupSubmit(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const licenseId = document.getElementById('licenseId').value;
+            const vehicleRegId = document.getElementById('vehicleRegId').value;
+
+            // التحقق الأساسي
+            if (!name || !email || !password || !licenseId || !vehicleRegId) {
+                showMessage('خطأ في الإدخال', 'يرجى ملء جميع الحقول المطلوبة.', 'fas fa-exclamation-triangle text-yellow-500', 3000);
+                return;
+            }
+
+            // تحديث بيانات المستخدم الافتراضية
+            mockUser = {
+                ...mockUser,
+                isLoggedIn: true,
+                name,
+                email,
+                licenseId,
+                vehicleRegId,
+                // إبقاء السيارات والحجوزات الحالية للسيناريو
+            };
+
+            showMessage(
+                'تم التسجيل بنجاح!',
+                `مرحباً بك، ${name}! تم تسجيل دخولك. يتم الآن تحويلك إلى لوحة التحكم الخاصة بك.`,
+                'fas fa-check-circle text-success',
+                1500
+            );
+            
+            setTimeout(() => {
+                showPage('dashboard-view');
+            }, 1800);
+        }
+        
+        function handleLogout() {
+            mockUser.isLoggedIn = false;
+            showMessage('تم تسجيل الخروج', 'لقد تم تسجيل خروجك بنجاح. نأمل أن نراك قريباً.', 'fas fa-door-open text-primary', 2000);
+            setTimeout(() => showPage('home-view'), 2200);
+        }
+
+        // --- Dashboard Management ---
+        function setDashboardTab(tabName) {
+            mockUser.dashboardActiveTab = tabName;
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            if (!mockUser.isLoggedIn) {
+                showPage('signup-view');
+                return;
+            }
+            
+            // تحديث اسم المستخدم في لوحة التحكم
+            document.getElementById('dashboard-greeting').textContent = `مرحباً بك، ${mockUser.name.split(' ')[0]}!`;
+            
+            // تحديث التبويبات النشطة
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.getElementById(`tab-${mockUser.dashboardActiveTab}`).classList.add('active');
+
+            // إظهار محتوى التبويب النشط
+            document.querySelectorAll('.dashboard-content-tab').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById(`content-${mockUser.dashboardActiveTab}`).style.display = 'block';
+
+            // إعادة عرض البيانات في التبويبات
+            if (mockUser.dashboardActiveTab === 'profile') {
+                renderProfileData();
+            } else if (mockUser.dashboardActiveTab === 'cars') {
+                renderCarsList();
+            } else if (mockUser.dashboardActiveTab === 'bookings') {
+                renderBookingsList();
+            }
+        }
+        
+        // --- Profile Management ---
+        function renderProfileData() {
+            document.getElementById('profile-name').value = mockUser.name;
+            document.getElementById('profile-email').value = mockUser.email;
+            document.getElementById('profile-licenseId').value = mockUser.licenseId;
+            document.getElementById('profile-vehicleRegId').value = mockUser.vehicleRegId;
+        }
+
+        function handleProfileUpdate(event) {
+            event.preventDefault();
+            mockUser.name = document.getElementById('profile-name').value;
+            mockUser.email = document.getElementById('profile-email').value;
+            mockUser.licenseId = document.getElementById('profile-licenseId').value;
+            mockUser.vehicleRegId = document.getElementById('profile-vehicleRegId').value;
+            
+            showMessage('تم التحديث', 'تم حفظ بياناتك الشخصية بنجاح.', 'fas fa-save text-success', 2000);
+            renderDashboard(); // لإعادة عرض البيانات المحدثة
+        }
+
+        // --- Car Management ---
+        function renderCarsList() {
+            const container = document.getElementById('cars-list-container');
+            container.innerHTML = '';
+
+            if (mockUser.cars.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-10">لم تقم بإضافة أي مركبات بعد. ابدأ بإضافة سيارتك الآن!</p>';
+                return;
+            }
+
+            mockUser.cars.forEach(car => {
+                const isSpecial = car.isSpecialNeeds ? '<span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">ذوي احتياجات</span>' : '';
+                const isCurrent = mockUser.currentCarId === car.id ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full ml-2">مختارة حالياً</span>' : '';
+                
+                // زر "اختيار للحجز" لتحديث السيارة الحالية
+                const selectCarButton = `<button onclick="setCurrentBookingCar('${car.id}')" class="text-secondary hover:text-amber-600 p-2 rounded-full hover:bg-gray-100 transition-colors"><i class="fas fa-hand-point-up"></i> اختيار</button>`;
+
+                container.innerHTML += `
+                    <div class="bg-white p-4 rounded-lg shadow-soft flex items-center justify-between border-r-4 ${car.isSpecialNeeds ? 'border-success' : 'border-primary'} mb-3">
+                        <div>
+                            <p class="font-bold text-lg text-gray-800">${car.manufacturer} ${car.name} (${car.year})</p>
+                            <p class="text-sm text-gray-500">اللون: ${car.color} | الملكية: ${car.ownership} | استمارة: ${car.regId}</p>
+                            <div class="mt-2">${isSpecial}${isCurrent}</div>
+                        </div>
+                        <div class="flex space-x-2 space-x-reverse">
+                            ${mockUser.currentCarId !== car.id ? selectCarButton : ''}
+                            <button onclick="openCarModal('${car.id}')" class="text-primary hover:text-blue-600 p-2 rounded-full hover:bg-gray-100 transition-colors"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteCar('${car.id}')" class="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-gray-100 transition-colors"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        function setCurrentBookingCar(carId) {
+            mockUser.currentCarId = carId;
+            showMessage('تم التحديد', 'تم تحديد هذه المركبة كمركبتك الرئيسية للحجز.', 'fas fa-check-circle text-success', 2000);
+            renderCarsList();
+        }
+
+        function openCarModal(carId = null) {
+            const modal = document.getElementById('carModal');
+            document.getElementById('carModalTitle').textContent = carId ? 'تعديل بيانات المركبة' : 'إضافة مركبة جديدة';
+            document.getElementById('carForm').dataset.editId = carId;
+            
+            // تهيئة الحقول (للتعديل أو الإضافة)
+            if (carId) {
+                const car = mockUser.cars.find(c => c.id === carId);
+                document.getElementById('carName').value = car.name;
+                document.getElementById('carManufacturer').value = car.manufacturer;
+                document.getElementById('carModel').value = car.model;
+                document.getElementById('carYear').value = car.year;
+                document.getElementById('carColor').value = car.color;
+                document.getElementById('carRegId').value = car.regId;
+                document.getElementById('isSpecialNeeds').checked = car.isSpecialNeeds;
+                document.getElementById('ownershipType').value = car.ownership;
+            } else {
+                document.getElementById('carForm').reset();
+            }
+            
+            // محاكاة إظهار حقل تحميل المستند
+            updateOwnershipDocumentField(document.getElementById('ownershipType').value);
+            toggleSpecialNeedsUpload(document.getElementById('isSpecialNeeds').checked);
+
+            modal.style.display = 'flex';
+        }
+
+        function updateOwnershipDocumentField(value) {
+            const docField = document.getElementById('ownershipDocumentField');
+            if (value === 'إيجار') {
+                docField.textContent = 'تحميل عقد الإيجار (محاكاة)';
+                docField.classList.remove('hidden');
+            } else if (value === 'ملك') {
+                docField.textContent = 'تحميل وثيقة الملكية (محاكاة)';
+                docField.classList.remove('hidden');
+            } else {
+                docField.classList.add('hidden');
+            }
+        }
+
+        function toggleSpecialNeedsUpload(isChecked) {
+             const specialNeedsField = document.getElementById('specialNeedsUpload');
+             if (isChecked) {
+                specialNeedsField.classList.remove('hidden');
+             } else {
+                specialNeedsField.classList.add('hidden');
+             }
+        }
+        
+        function handleCarFormSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const carId = form.dataset.editId;
+            
+            // جمع البيانات
+            const newCarData = {
+                name: form.carName.value,
+                manufacturer: form.carManufacturer.value,
+                model: form.carModel.value,
+                year: form.carYear.value,
+                color: form.carColor.value,
+                regId: form.carRegId.value,
+                isSpecialNeeds: form.isSpecialNeeds.checked,
+                ownership: form.ownershipType.value,
+                documentUrl: 'mock_document_link' // محاكاة لرفع المستند
+            };
+
+            // التحقق من الحقول المطلوبة (بسيطة)
+            if (!newCarData.name || !newCarData.regId || !newCarData.ownership) {
+                showMessage('خطأ', 'يرجى ملء الحقول الأساسية للسيارة.', 'fas fa-exclamation-triangle text-yellow-500', 3000);
+                return;
+            }
+
+            if (carId && carId !== 'null') {
+                // تعديل
+                const index = mockUser.cars.findIndex(c => c.id === carId);
+                if (index !== -1) {
+                    mockUser.cars[index] = { ...mockUser.cars[index], ...newCarData };
+                    showMessage('تم التعديل', 'تم تحديث بيانات المركبة بنجاح.', 'fas fa-car text-primary', 2000);
+                }
+            } else {
+                // إضافة جديدة
+                const newId = 'c' + crypto.randomUUID().substring(0, 4); // توليد ID عشوائي بسيط
+                mockUser.cars.push({ id: newId, ...newCarData });
+                // جعل السيارة الجديدة هي السيارة المختارة للحجز افتراضياً
+                mockUser.currentCarId = newId; 
+                showMessage('تمت الإضافة', 'تم تسجيل مركبة جديدة بنجاح.', 'fas fa-check-circle text-success', 2000);
+            }
+
+            document.getElementById('carModal').style.display = 'none';
+            renderCarsList();
+        }
+
+        function deleteCar(carId) {
+            // استخدام رسالة مخصصة بدلاً من window.confirm()
+            const confirmDelete = () => {
+                mockUser.cars = mockUser.cars.filter(c => c.id !== carId);
+                if (mockUser.currentCarId === carId) {
+                    mockUser.currentCarId = mockUser.cars.length > 0 ? mockUser.cars[0].id : null;
+                }
+                showMessage('تم الحذف', 'تم حذف المركبة بنجاح.', 'fas fa-trash-alt text-red-500', 2000);
+                renderCarsList();
+            };
+            
+            showConfirmModal('تأكيد الحذف', 'هل أنت متأكد من حذف هذه المركبة؟ لا يمكن التراجع عن هذا الإجراء.', 'fas fa-question-circle text-red-500', confirmDelete);
+        }
+
+        // دالة مخصصة للتأكيد بدلاً من window.confirm
+        function showConfirmModal(title, message, iconClass, onConfirm) {
+            const modal = document.getElementById('myModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = message;
+            document.getElementById('modalIcon').className = `mb-4 text-5xl ${iconClass}`;
+            document.getElementById('modalConfirm').style.display = 'none'; // إخفاء زر التأكيد التلقائي
+
+            const actionButtons = document.getElementById('modalActionButtons');
+            actionButtons.innerHTML = `
+                <button onclick="closeModal()" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors">إلغاء</button>
+                <button id="confirmActionButton" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">تأكيد</button>
+            `;
+            document.getElementById('confirmActionButton').onclick = () => {
+                onConfirm();
+                closeModal();
+                actionButtons.innerHTML = ''; // تنظيف الأزرار
+            };
+
+            modal.style.display = 'flex';
+        }
+        
+        // --- Booking Management ---
+        function renderBookingsList() {
+            const currentContainer = document.getElementById('current-bookings');
+            const pastContainer = document.getElementById('past-bookings');
+            currentContainer.innerHTML = '';
+            pastContainer.innerHTML = '';
+
+            const now = Date.now();
+            const oneHour = 3600000;
+            // الحجوزات الحالية (التي تبدأ بعد أقل من ساعة)
+            const currentBookings = mockUser.bookings.filter(b => b.status === 'Current' && b.timestamp > now - oneHour); 
+            // الحجوزات السابقة أو الملغاة
+            const pastBookings = mockUser.bookings.filter(b => b.status === 'Past' || b.timestamp <= now - oneHour || b.status === 'Cancelled'); 
+
+            const renderBookingItem = (booking) => {
+                const car = mockUser.cars.find(c => c.id === booking.carId) || { name: 'مركبة محذوفة' };
+                const isCancellable = booking.timestamp > now + oneHour; // قابل للإلغاء قبل ساعة على الأقل
+                
+                let actionButton = '';
+                if (booking.status === 'Current' && isCancellable) {
+                    actionButton = `<button onclick="cancelBooking('${booking.id}')" class="bg-red-500 text-white px-3 py-1 text-sm rounded-lg hover:bg-red-600 transition-colors">إلغاء الحجز</button>`;
+                } else if (booking.status === 'Current' && !isCancellable) {
+                    actionButton = `<span class="text-yellow-600 text-sm font-semibold">الإلغاء مغلق (أقل من ساعة)</span>`;
+                } else if (booking.status === 'Cancelled') {
+                    actionButton = `<span class="text-red-500 text-sm font-semibold">ملغي</span>`;
+                } else {
+                    actionButton = `<span class="text-gray-500 text-sm">منتهي</span>`;
+                }
+                
+                const duration = ((new Date(`${booking.date}T${booking.endTime}:00`).getTime() - new Date(`${booking.date}T${booking.startTime}:00`).getTime()) / 3600000);
+                const totalCalculated = Math.ceil(duration) * (PRICE_MAP[booking.spotType] || 0);
+
+                return `
+                    <div class="bg-white p-4 rounded-lg shadow-soft border-l-4 ${booking.status === 'Current' ? 'border-success' : 'border-gray-300'} mb-3 flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-lg text-gray-800">${booking.location} - موقف ${booking.spotType}</p>
+                            <p class="text-sm text-gray-500">المركبة: ${car.name} | التاريخ: ${booking.date} | الوقت: ${booking.startTime} - ${booking.endTime}</p>
+                            <p class="text-xs mt-1 ${totalCalculated > 0 ? 'text-primary' : 'text-green-600'}">المبلغ: ${totalCalculated} ريال</p>
+                        </div>
+                        <div class="text-left">
+                            ${actionButton}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (currentBookings.length === 0) {
+                currentContainer.innerHTML = '<p class="text-center text-gray-500 py-4">لا توجد لديك حجوزات حالية.</p>';
+            } else {
+                currentBookings.forEach(b => currentContainer.innerHTML += renderBookingItem(b));
+            }
+
+            if (pastBookings.length === 0) {
+                pastContainer.innerHTML = '<p class="text-center text-gray-500 py-4">لم تقم بأي حجوزات سابقة.</p>';
+            } else {
+                pastBookings.forEach(b => pastContainer.innerHTML += renderBookingItem(b));
+            }
+        }
+
+        function cancelBooking(bookingId) {
+            const booking = mockUser.bookings.find(b => b.id === bookingId);
+            const now = Date.now();
+            const oneHour = 3600000;
+            
+            const performCancel = () => {
+                if (booking) {
+                    booking.status = 'Cancelled';
+                    booking.timestamp = now; // تحديث الوقت لتظهر كملغاة
+                    showMessage('تم الإلغاء', 'تم إلغاء حجزك بنجاح. سيصلك إشعار عبر البريد.', 'fas fa-check-circle text-success', 2500);
+                    renderBookingsList();
+                }
+            };
+
+            if (booking && (booking.timestamp > now + oneHour)) {
+                showConfirmModal('تأكيد الإلغاء', 'هل أنت متأكد من إلغاء هذا الحجز؟ يجب الإلغاء قبل ساعة على الأقل.', 'fas fa-question-circle text-primary', performCancel);
+            } else {
+                showMessage('غير مسموح بالإلغاء', 'يجب إلغاء الحجز قبل ساعة واحدة على الأقل من وقت البدء.', 'fas fa-exclamation-triangle text-red-500', 3000);
+            }
+        }
+
+
+        // --- Booking Form Logic (New Page) ---
+        function initBookingForm() {
+            // التحقق من وجود سيارة واحدة على الأقل
+            if (mockUser.cars.length === 0) {
+                showMessage('خطأ في الحجز', 'يجب إضافة مركبة واحدة على الأقل قبل البدء في الحجز.', 'fas fa-exclamation-circle text-red-500', 4000);
+                setTimeout(() => setDashboardTab('cars'), 4500);
+                showPage('dashboard-view');
+                return;
+            }
+            
+            // ملء قائمة المواقع
+            const locationSelect = document.getElementById('bookingLocation');
+            locationSelect.innerHTML = LOCATIONS.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+
+            // ملء قائمة السيارات
+            const carSelect = document.getElementById('bookingCar');
+            carSelect.innerHTML = mockUser.cars.map(car => 
+                `<option value="${car.id}" ${car.id === mockUser.currentCarId ? 'selected' : ''}>${car.manufacturer} ${car.name} (${car.regId})</option>`
+            ).join('');
+            
+            // إعداد تاريخ اليوم كحد أدنى
+            document.getElementById('bookingDate').min = new Date().toISOString().split('T')[0];
+            
+            // تحديث فئات المواقف عند البدء
+            updateSpotTypes(); 
+            calculateMockPrice(); // حساب السعر المبدئي
+        }
+
+        function updateSpotTypes() {
+            const selectedCarId = document.getElementById('bookingCar').value;
+            const selectedCar = mockUser.cars.find(c => c.id === selectedCarId);
+            const spotTypeSelect = document.getElementById('bookingSpotType');
+            spotTypeSelect.innerHTML = '';
+            
+            // الفئات الأساسية
+            let types = [
+                { value: 'Normal', label: 'عادي (5 ريال/ساعة)' },
+                { value: 'VIP', label: 'VIP (10 ريال/ساعة)' },
+                { value: 'VVIP', label: 'VVIP (20 ريال/ساعة)' },
+            ];
+
+            // إضافة فئة ذوي الاحتياجات إذا كانت السيارة تحمل الرخصة
+            if (selectedCar && selectedCar.isSpecialNeeds) {
+                types.unshift({ value: 'Disabled', label: 'ذوي الاحتياجات الخاصة (مجاني)' });
+            }
+
+            spotTypeSelect.innerHTML = types.map(type => 
+                `<option value="${type.value}">${type.label}</option>`
+            ).join('');
+            
+            calculateMockPrice(); // إعادة حساب السعر عند تحديث النوع
+        }
+
+        // محاكاة حساب المبلغ
+        function calculateMockPrice() {
+            const type = document.getElementById('bookingSpotType').value;
+            const pricePerHour = PRICE_MAP[type] || 0;
+            const date = document.getElementById('bookingDate').value;
+            const start = document.getElementById('bookingStartTime').value;
+            const end = document.getElementById('bookingEndTime').value;
+
+            const priceDisplay = document.getElementById('bookingPrice');
+            const totalDisplay = document.getElementById('finalTotal');
+            
+            if (!date || !start || !end) {
+                priceDisplay.textContent = '0 ريال';
+                totalDisplay.textContent = '0 ريال';
+                return 0;
+            }
+            
+            // محاكاة حساب الساعات (تبسيطاً، بافتراض نفس اليوم)
+            const startTime = new Date(`${date}T${start}:00`).getTime();
+            const endTime = new Date(`${date}T${end}:00`).getTime();
+
+            if (endTime <= startTime) {
+                priceDisplay.textContent = '0 ريال (خطأ في الوقت)';
+                totalDisplay.textContent = '0 ريال (خطأ في الوقت)';
+                return 0;
+            }
+
+            const durationHours = Math.ceil((endTime - startTime) / 3600000); // بالتقريب لأعلى ساعة
+            
+            const total = pricePerHour * durationHours;
+            
+            if (type === 'Disabled') {
+                priceDisplay.textContent = 'مجاني';
+                totalDisplay.textContent = '0 ريال';
+            } else {
+                priceDisplay.textContent = `${pricePerHour} ريال للساعة`;
+                totalDisplay.textContent = `${total} ريال (${durationHours} ساعات)`;
+            }
+            
+            return total;
+        }
+
+        function handleBookingSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const date = form.bookingDate.value;
+            const start = form.bookingStartTime.value;
+            const end = form.bookingEndTime.value;
+
+            const total = calculateMockPrice();
+
+            if (total === 0 && form.bookingSpotType.value !== 'Disabled' && 
+                new Date(`${date}T${start}:00`).getTime() >= new Date(`${date}T${end}:00`).getTime()) {
+                 showMessage('خطأ في المدة', 'يرجى اختيار مدة حجز صالحة (وقت النهاية يجب أن يكون بعد وقت البدء).', 'fas fa-exclamation-triangle text-yellow-500', 3000);
+                 return;
+            }
+            
+            // تحقق من أن التاريخ ليس قديماً
+            if (new Date(`${date}T${end}:00`).getTime() < Date.now()) {
+                showMessage('خطأ', 'لا يمكن الحجز في وقت مضى.', 'fas fa-exclamation-triangle text-red-500', 3000);
+                return;
+            }
+
+            // محاكاة منع الحجز المتداخل
+            const newBookingStartTime = new Date(`${date}T${start}:00`).getTime();
+            const newBookingEndTime = new Date(`${date}T${end}:00`).getTime();
+
+            const isOverlapping = mockUser.bookings.some(b => 
+                 b.status === 'Current' && 
+                 b.location === form.bookingLocation.value && 
+                 b.spotType === form.bookingSpotType.value &&
+                 (
+                    (new Date(`${b.date}T${b.startTime}:00`).getTime() < newBookingEndTime) &&
+                    (new Date(`${b.date}T${b.endTime}:00`).getTime() > newBookingStartTime)
+                 )
+            );
+
+            if (isOverlapping) {
+                showMessage('خطأ في الحجز', 'عذراً، هناك حجز متداخل في نفس الموقف والوقت.', 'fas fa-exclamation-circle text-red-500', 4000);
+                return;
+            }
+
+            // تنفيذ الحجز
+            const newBooking = {
+                 id: 'b' + crypto.randomUUID().substring(0, 4),
+                 carId: form.bookingCar.value,
+                 location: form.bookingLocation.value,
+                 spotType: form.bookingSpotType.value,
+                 date: date,
+                 startTime: start,
+                 endTime: end,
+                 status: 'Current',
+                 price: total,
+                 timestamp: newBookingStartTime
+            };
+
+            mockUser.bookings.push(newBooking);
+            mockUser.currentBooking = newBooking;
+
+            showMessage(
+                'تم تأكيد الحجز!',
+                `تم حجز موقف ${newBooking.spotType} في ${newBooking.location} بنجاح. المبلغ الإجمالي: ${total} ريال. سيصلك تأكيد وتذكير عبر البريد.`,
+                'fas fa-parking text-success',
+                4000
+            );
+
+            // توجيه المستخدم إلى لوحة التحكم
+            setTimeout(() => {
+                setDashboardTab('bookings');
+                showPage('dashboard-view');
+            }, 4200);
+        }
+
+        // --- Customer Support Form ---
+        function handleSupportSubmit(event) {
+            event.preventDefault();
+
+            const email = document.getElementById('supportEmail').value;
+            const subject = document.getElementById('supportSubject').value;
+            const message = document.getElementById('supportMessage').value;
+
+            if (!email || !subject || !message) {
+                showMessage('خطأ', 'يرجى ملء جميع حقول نموذج الدعم.', 'fas fa-exclamation-triangle text-yellow-500', 3000);
+                return;
+            }
+
+            // محاكاة إرسال البريد الإلكتروني
+            showMessage(
+                'تم إرسال رسالتك',
+                `شكراً لك! لقد تم إرسال رسالتك بخصوص "${subject}" إلى فريق الدعم (sahlna.twiq@gmail.com). سيتم الرد عليك في أقرب وقت.`,
+                'fas fa-envelope-open-text text-primary',
+                4000
+            );
+
+            document.getElementById('contact-form').reset();
+        }
+
+        // دالة بدء تشغيل التطبيق
+        window.onload = function() {
+            if (mockUser.isLoggedIn) {
+                showPage('dashboard-view');
+            } else {
+                showPage('home-view');
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header Component Mockup - يظهر فقط في الصفحة الرئيسية والتسجيل -->
+    <header id="mainHeader" class="fixed top-0 w-full bg-white/90 backdrop-blur-sm z-10 border-b border-gray-100 shadow-sm">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <!-- الشعار -->
+            <a href="javascript:void(0);" onclick="showPage('home-view')" class="text-3xl font-black text-primary flex items-center">
+                <i class="fas fa-car-side text-4xl ml-2"></i> لَبِق
+            </a>
+            <nav class="hidden md:flex space-x-6 space-x-reverse text-gray-700 font-medium">
+                <a href="#about" class="hover:text-primary transition-colors">عن لَبِق</a>
+                <a href="#locations" class="hover:text-primary transition-colors">المواقع</a>
+                <a href="#pricing" class="hover:text-primary transition-colors">الأسعار</a>
+                <a href="#contact" class="hover:text-primary transition-colors">اتصل بنا</a>
+                <a href="#faq" class="hover:text-primary transition-colors">الأسئلة الشائعة</a>
+            </nav>
+            <div class="flex space-x-4 space-x-reverse">
+                <a href="javascript:void(0);" onclick="showPage('signup-view')" class="hero-gradient text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+                    تسجيل الدخول / إنشاء حساب
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ************************************ -->
+    <!-- 1. الشاشة الرئيسية (Home View) -->
+    <!-- ************************************ -->
+    <div id="home-view" class="page-view flex-1 flex-col pt-20 md:pt-24">
+        <!-- Hero Section -->
+        <section class="pt-12 pb-20 px-4 bg-white">
+            <div class="container mx-auto text-center">
+                <div class="max-w-4xl mx-auto">
+                    <h1 class="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
+                        <span class="text-gradient">لَبِق: مفتاحك لحجز المواقف الذكي</span>
+                    </h1>
+                    <!-- العبارة الرئيسية المحدثة -->
+                    <p class="text-xl md:text-2xl text-muted-foreground mb-8 leading-relaxed">
+                        احجز موقف سيارتك بكل سهولة وراحة تامة، نظام متقدم لإدارة المواقف في جميع مواقع طويق الحيوية.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                        <a href="javascript:void(0);" onclick="showPage('signup-view')" class="btn-lg hero-gradient text-white px-8 py-6 shadow-elevated hover:shadow-xl transition-all">
+                            احجز موقفك الآن
+                        </a>
+                        <a href="javascript:void(0);" onclick="showPage('signup-view')" class="btn-lg border-2 border-gray-300 text-gray-800 px-8 py-6 rounded-xl bg-white hover:bg-gray-100 transition-colors">
+                            لوحة التحكم
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="py-20 bg-card" id="about">
+            <div class="container mx-auto px-4">
+                <h2 class="text-4xl font-extrabold text-center mb-12">لماذا لَبِق؟</h2>
+                <div class="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                    <div class="p-6 rounded-xl border border-gray-200 card-gradient hover:shadow-elevated transition-smooth text-center"><i class="fas fa-clock w-12 h-12 text-primary mb-4 text-4xl"></i><h3 class="text-xl font-bold mb-2">حجز سريع وسهل</h3><p class="text-muted-foreground">احجز موقفك في ثوانٍ معدودة</p></div>
+                    <div class="p-6 rounded-xl border border-gray-200 card-gradient hover:shadow-elevated transition-smooth text-center"><i class="fas fa-shield-alt w-12 h-12 text-primary mb-4 text-4xl"></i><h3 class="text-xl font-bold mb-2">آمن وموثوق</h3><p class="text-muted-foreground">نظام حماية متقدم لبياناتك</p></div>
+                    <div class="p-6 rounded-xl border border-gray-200 card-gradient hover:shadow-elevated transition-smooth text-center"><i class="fas fa-car w-12 h-12 text-primary mb-4 text-4xl"></i><h3 class="text-xl font-bold mb-2">إدارة مركبات</h3><p class="text-muted-foreground">إضافة، تعديل، وحذف سياراتك</p></div>
+                    <div class="p-6 rounded-xl border border-gray-200 card-gradient hover:shadow-elevated transition-smooth text-center"><i class="fas fa-map-pin w-12 h-12 text-primary mb-4 text-4xl"></i><h3 class="text-xl font-bold mb-2">مواقع متعددة</h3><p class="text-muted-foreground">اختر من 9 مواقع حيوية</p></div>
+                    <div class="p-6 rounded-xl border border-gray-200 card-gradient hover:shadow-elevated transition-smooth text-center"><i class="fas fa-bell w-12 h-12 text-primary mb-4 text-4xl"></i><h3 class="text-xl font-bold mb-2">إشعارات فورية</h3><p class="text-muted-foreground">تأكيد وتذكير بالإلغاء</p></div>
+                    <div class="p-6 rounded-xl border border-gray-200 card-gradient hover:shadow-elevated transition-smooth text-center"><i class="fas fa-hands-helping w-12 h-12 text-primary mb-4 text-4xl"></i><h3 class="text-xl font-bold mb-2">دعم فني</h3><p class="text-muted-foreground">فريق دعم مستعد لخدمتك</p></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="py-20 bg-white" id="pricing">
+            <div class="container mx-auto px-4 max-w-4xl">
+                <h2 class="text-4xl font-extrabold text-center mb-12">فئات المواقف والأسعار</h2>
+                <div class="bg-card p-6 rounded-xl shadow-elevated">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full table-auto text-right">
+                            <thead>
+                                <tr class="bg-primary text-white rounded-t-lg">
+                                    <th class="p-3 text-lg font-bold rounded-tr-lg">الفئة</th>
+                                    <th class="p-3 text-lg font-bold">السعر لكل ساعة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-gray-200 hover:bg-gray-100">
+                                    <td class="p-3 font-semibold">VVIP</td>
+                                    <td class="p-3 text-lg text-primary">20 ريال</td>
+                                </tr>
+                                <tr class="border-b border-gray-200 hover:bg-gray-100">
+                                    <td class="p-3 font-semibold">VIP</td>
+                                    <td class="p-3 text-lg text-primary">10 ريال</td>
+                                </tr>
+                                <tr class="border-b border-gray-200 hover:bg-gray-100">
+                                    <td class="p-3 font-semibold">Normal</td>
+                                    <td class="p-3 text-lg text-primary">5 ريال</td>
+                                </tr>
+                                <tr class="hover:bg-gray-100 bg-green-50">
+                                    <td class="p-3 font-semibold text-green-700 flex items-center"><i class="fas fa-wheelchair ml-2"></i> ذوي الاحتياجات الخاصة</td>
+                                    <td class="p-3 text-lg text-green-700 font-bold">مجاني</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="mt-4 text-sm text-muted-foreground">*المواقف المخصصة للذوي الاحتياجات مجانية، بشرط رفع رخصة ذوي الاحتياجات الخاصة في ملف المستخدم.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Locations Section -->
+        <section class="py-20 bg-card" id="locations">
+            <div class="container mx-auto px-4">
+                <h2 class="text-4xl font-extrabold text-center mb-12">أماكن الحجز المتاحة (مناطق طويق)</h2>
+                <div class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
+                    <!-- يتم عرض الأماكن من قائمة LOCATIONS -->
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const locationsContainer = document.getElementById('locations-list');
+                            if (locationsContainer) {
+                                locationsContainer.innerHTML = LOCATIONS.map(loc => `
+                                    <div class="p-4 bg-white rounded-lg shadow-soft text-center border-b-4 border-secondary hover:shadow-elevated transition-smooth">
+                                        <i class="fas fa-building text-3xl text-primary mb-2"></i>
+                                        <p class="font-semibold text-lg">${loc}</p>
+                                    </div>
+                                `).join('');
+                            }
+                        });
+                    </script>
+                    <div id="locations-list" class="contents"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Support/FAQ Section -->
+        <section class="py-20" id="faq">
+            <div class="container mx-auto px-4 max-w-4xl">
+                <h2 class="text-4xl font-extrabold text-center mb-12">الدعم والمساعدة الفورية (FAQ)</h2>
+                <div class="space-y-6">
+                    <!-- FAQ Item 1 -->
+                    <div class="bg-white p-5 rounded-xl shadow-soft border border-gray-200">
+                        <h3 class="font-bold text-xl mb-2 text-primary flex items-center"><i class="fas fa-question-circle ml-2"></i> 1) كيف يمكنني حجز الموقف؟</h3>
+                        <p class="text-gray-700">بعد تسجيل الدخول، انتقل إلى لوحة التحكم، ثم اضغط على "حجز موقف جديد"، واختر السيارة والموقع والتاريخ والوقت المناسبين. سيتم تأكيد الحجز مباشرة بعد الدفع الرمزي.</p>
+                    </div>
+                    <!-- FAQ Item 2 -->
+                    <div class="bg-white p-5 rounded-xl shadow-soft border border-gray-200">
+                        <h3 class="font-bold text-xl mb-2 text-primary flex items-center"><i class="fas fa-question-circle ml-2"></i> 2) متى يمكنني إلغاء الحجز؟</h3>
+                        <p class="text-gray-700">يمكنك إلغاء الحجز قبل ساعة واحدة على الأقل من وقت البداية المجدول. إذا كان وقت الإلغاء أقرب من ساعة، سيتم إغلاق خاصية الإلغاء ولن تتمكن من استرداد المبلغ الرمزي.</p>
+                    </div>
+                    <!-- FAQ Item 3 (إضافة سؤال إضافي) -->
+                    <div class="bg-white p-5 rounded-xl shadow-soft border border-gray-200">
+                        <h3 class="font-bold text-xl mb-2 text-primary flex items-center"><i class="fas fa-question-circle ml-2"></i> 3) كيف أستفيد من مواقف ذوي الاحتياجات الخاصة؟</h3>
+                        <p class="text-gray-700">للاستفادة من المواقف المجانية، يجب رفع رخصة ذوي الإعاقة (المعتمدة) أثناء إضافة أو تعديل بيانات سيارتك في قسم "إدارة المركبات" بلوحة التحكم. بعد ذلك، ستظهر لك فئة "ذوي الاحتياجات الخاصة" في خيارات الحجز.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section class="py-20 bg-primary/5 border-t border-gray-200" id="contact">
+            <div class="container mx-auto px-4 max-w-4xl">
+                <h2 class="text-4xl font-extrabold text-center mb-12">تواصل معنا</h2>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- Contact Form -->
+                    <div class="bg-white p-8 rounded-xl shadow-elevated">
+                        <h3 class="text-2xl font-bold mb-4 text-primary">أرسل لنا رسالة</h3>
+                        <form id="contact-form" onsubmit="handleSupportSubmit(event)">
+                            <div class="mb-4">
+                                <label for="supportEmail" class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                                <input type="email" id="supportEmail" name="email" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                            </div>
+                            <div class="mb-4">
+                                <label for="supportSubject" class="block text-sm font-medium text-gray-700 mb-1">عنوان الموضوع</label>
+                                <input type="text" id="supportSubject" name="subject" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                            </div>
+                            <div class="mb-6">
+                                <label for="supportMessage" class="block text-sm font-medium text-gray-700 mb-1">نص الرسالة</label>
+                                <textarea id="supportMessage" name="message" rows="4" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"></textarea>
+                            </div>
+                            <button type="submit" class="w-full hero-gradient text-white py-3 rounded-lg font-bold hover:opacity-90 transition-opacity">
+                                إرسال الرسالة
+                            </button>
+                            <p class="mt-3 text-xs text-muted-foreground text-center">ترسل الرسالة مباشرة إلى البريد: sahlna.twiq@gmail.com</p>
+                        </form>
+                    </div>
+
+                    <!-- Contact Info and Hours -->
+                    <div class="bg-white p-8 rounded-xl shadow-elevated">
+                        <h3 class="text-2xl font-bold mb-4 text-primary">معلومات الاتصال</h3>
+                        <div class="space-y-4">
+                            <p class="flex items-center text-lg"><i class="fas fa-phone-alt text-secondary ml-3"></i> <span class="font-bold">رقم الاتصال لخدمة العملاء:</span> 920000000</p>
+                            <p class="flex items-center text-lg"><i class="fas fa-envelope text-secondary ml-3"></i> <span class="font-bold">الدعم الفني:</span> sahlna.twiq@gmail.com</p>
+                            
+                            <h4 class="text-xl font-bold pt-4 border-t border-gray-100 text-primary">ساعات العمل</h4>
+                            <p class="text-lg flex items-start"><i class="fas fa-calendar-alt text-secondary ml-3 mt-1"></i> الأحد إلى الخميس</p>
+                            <p class="text-lg flex items-start"><i class="fas fa-clock text-secondary ml-3 mt-1"></i> من 8:00 صباحًا حتى 8:00 مساءً</p>
+                            <p class="text-sm text-red-500 mt-2">تنبيه: لا تتوفر خدمة العملاء يومي الجمعة والسبت.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white p-6 mt-auto">
+            <div class="container mx-auto text-center">
+                <p class="text-sm">جميع الحقوق محفوظة لفريق لَبِق &copy; <span id="currentYear"></span></p>
+                <script>document.getElementById('currentYear').textContent = new Date().getFullYear();</script>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- ************************************ -->
+    <!-- 2. شاشة التسجيل (Signup/Login View) -->
+    <!-- ************************************ -->
+    <div id="signup-view" class="page-view flex-1 justify-center items-center p-4">
+        <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-elevated border border-gray-100">
+            <h2 class="text-3xl font-bold text-center mb-6 text-primary">إنشاء حساب جديد</h2>
+            <form id="signup-form" onsubmit="handleSignupSubmit(event)">
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- Personal Info -->
+                    <input type="text" id="name" placeholder="الاسم الكامل" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary">
+                    <input type="email" id="email" placeholder="البريد الإلكتروني" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary">
+                    <input type="password" id="password" placeholder="كلمة المرور" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary">
+                    
+                    <h3 class="text-lg font-bold mt-4 text-gray-700 border-t pt-4">بيانات المصادقة الإضافية</h3>
+                    
+                    <!-- Auth Requirements -->
+                    <input type="text" id="licenseId" placeholder="رقم رخصة القيادة" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary">
+                    <input type="text" id="vehicleRegId" placeholder="رقم استمارة أو رخصة المركبة" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-secondary focus:border-secondary">
+                </div>
+                
+                <button type="submit" class="w-full hero-gradient text-white py-3 mt-6 rounded-lg font-bold hover:opacity-90 transition-opacity">
+                    تسجيل الحساب
+                </button>
+            </form>
+            <p class="text-center mt-4 text-sm text-muted-foreground">لديك حساب بالفعل؟ <a href="javascript:void(0);" onclick="handleSignupSubmit(event)" class="text-primary font-semibold hover:underline">تسجيل دخول</a></p>
+            <p class="text-center mt-2 text-xs text-muted-foreground"> (لأغراض المحاكاة، يتم تسجيل الدخول مباشرة بعد الضغط)</p>
+        </div>
+    </div>
+
+    <!-- ************************************ -->
+    <!-- 3. لوحة تحكم المستخدم (Dashboard View) -->
+    <!-- ************************************ -->
+    <div id="dashboard-view" class="page-view flex-1 flex-row pt-4 md:pt-10">
+        <!-- Sidebar -->
+        <div id="sidebar" class="bg-white p-4 hidden md:block border-l border-gray-100">
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold text-primary mb-1">لوحة تحكم لَبِق</h1>
+                <p id="dashboard-greeting" class="text-muted-foreground text-sm">مرحباً بك!</p>
+            </div>
+            <nav class="space-y-2">
+                <a id="tab-bookings" onclick="setDashboardTab('bookings')" class="sidebar-item active">
+                    <i class="fas fa-calendar-alt ml-2"></i> حجوزاتي
+                </a>
+                <a id="tab-cars" onclick="setDashboardTab('cars')" class="sidebar-item">
+                    <i class="fas fa-car-side ml-2"></i> إدارة المركبات
+                </a>
+                <a id="tab-profile" onclick="setDashboardTab('profile')" class="sidebar-item">
+                    <i class="fas fa-user-circle ml-2"></i> الملف الشخصي
+                </a>
+                <a onclick="showPage('booking-view')" class="sidebar-item bg-secondary/10 hover:bg-secondary/20 text-secondary font-bold">
+                    <i class="fas fa-plus-circle ml-2"></i> حجز موقف جديد
+                </a>
+            </nav>
+            <button onclick="handleLogout()" class="w-full bg-red-500 text-white p-3 rounded-lg mt-8 hover:bg-red-600 transition-colors">
+                <i class="fas fa-sign-out-alt ml-2"></i> تسجيل الخروج
+            </button>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto bg-gray-50">
+            <div class="max-w-4xl mx-auto">
+                
+                <!-- Content - Bookings -->
+                <div id="content-bookings" class="dashboard-content-tab">
+                    <h2 class="text-3xl font-extrabold mb-6 text-primary">حجوزاتي</h2>
+                    <a onclick="showPage('booking-view')" class="hero-gradient text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity inline-block mb-6">
+                        <i class="fas fa-plus-circle ml-2"></i> حجز موقف جديد
+                    </a>
+
+                    <div class="mb-8">
+                        <h3 class="text-xl font-bold mb-3 border-b pb-2">الحجوزات الحالية</h3>
+                        <div id="current-bookings">
+                            <!-- Bookings will be rendered here -->
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xl font-bold mb-3 border-b pb-2">الحجوزات السابقة والملغاة</h3>
+                        <div id="past-bookings">
+                             <!-- Past Bookings will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content - Profile -->
+                <div id="content-profile" class="dashboard-content-tab">
+                    <h2 class="text-3xl font-extrabold mb-6 text-primary">تعديل الملف الشخصي</h2>
+                    <div class="bg-white p-6 rounded-xl shadow-soft">
+                        <form onsubmit="handleProfileUpdate(event)">
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div class="col-span-2">
+                                    <label for="profile-name" class="block text-sm font-medium text-gray-700 mb-1">الاسم الكامل</label>
+                                    <input type="text" id="profile-name" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                </div>
+                                <div class="col-span-2">
+                                    <label for="profile-email" class="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                                    <input type="email" id="profile-email" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                </div>
+                                <div>
+                                    <label for="profile-licenseId" class="block text-sm font-medium text-gray-700 mb-1">رقم رخصة القيادة</label>
+                                    <input type="text" id="profile-licenseId" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                </div>
+                                <div>
+                                    <label for="profile-vehicleRegId" class="block text-sm font-medium text-gray-700 mb-1">رقم استمارة المركبة</label>
+                                    <input type="text" id="profile-vehicleRegId" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                </div>
+                            </div>
+                            <button type="submit" class="hero-gradient text-white py-3 px-6 rounded-lg font-bold mt-6 hover:opacity-90 transition-opacity">
+                                حفظ التعديلات
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Content - Cars -->
+                <div id="content-cars" class="dashboard-content-tab">
+                    <h2 class="text-3xl font-extrabold mb-6 text-primary">إدارة المركبات</h2>
+                    
+                    <button onclick="openCarModal()" class="hero-gradient text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity mb-6">
+                        <i class="fas fa-plus-circle ml-2"></i> إضافة مركبة جديدة
+                    </button>
+                    
+                    <div id="cars-list-container" class="space-y-4">
+                        <!-- Cars list will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ************************************ -->
+    <!-- 4. شاشة الحجز (Booking View) -->
+    <!-- ************************************ -->
+    <div id="booking-view" class="page-view flex-1 justify-center items-start p-4 md:p-10 pt-20 bg-gray-50">
+        <div class="w-full max-w-4xl bg-white p-6 md:p-10 rounded-xl shadow-elevated border border-gray-100 mx-auto">
+            <h2 class="text-3xl font-bold mb-6 text-primary border-b pb-3"><i class="fas fa-parking ml-2"></i> حجز موقف جديد</h2>
+            <form onsubmit="handleBookingSubmit(event)">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- Column 1: Car & Location -->
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-bold text-gray-700">1. اختيار المركبة والموقع</h3>
+                        
+                        <div>
+                            <label for="bookingCar" class="block text-sm font-medium text-gray-700 mb-1">السيارة المختارة</label>
+                            <select id="bookingCar" onchange="updateSpotTypes()" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                <!-- Options populated by JS -->
+                            </select>
+                            <p class="text-xs text-muted-foreground mt-1">تأكد من اختيار السيارة الصحيحة للاستفادة من مزاياها (مثل مواقف ذوي الاحتياجات).</p>
+                        </div>
+                        
+                        <div>
+                            <label for="bookingLocation" class="block text-sm font-medium text-gray-700 mb-1">المكان المرغوب</label>
+                            <select id="bookingLocation" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                <!-- Options populated by JS -->
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="bookingSpotType" class="block text-sm font-medium text-gray-700 mb-1">نوع الموقف</label>
+                            <select id="bookingSpotType" onchange="calculateMockPrice()" required class="w-full p-3 border border-gray-300 rounded-lg">
+                                <!-- Options populated by JS (dynamic based on car) -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Date & Time -->
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-bold text-gray-700">2. تحديد التاريخ والوقت</h3>
+                        <div>
+                            <label for="bookingDate" class="block text-sm font-medium text-gray-700 mb-1">التاريخ</label>
+                            <input type="date" id="bookingDate" onchange="calculateMockPrice()" required class="w-full p-3 border border-gray-300 rounded-lg">
+                        </div>
+                        
+                        <div>
+                            <label for="bookingStartTime" class="block text-sm font-medium text-gray-700 mb-1">وقت البدء</label>
+                            <input type="time" id="bookingStartTime" onchange="calculateMockPrice()" required class="w-full p-3 border border-gray-300 rounded-lg">
+                        </div>
+                        
+                        <div>
+                            <label for="bookingEndTime" class="block text-sm font-medium text-gray-700 mb-1">وقت الانتهاء</label>
+                            <input type="time" id="bookingEndTime" onchange="calculateMockPrice()" required class="w-full p-3 border border-gray-300 rounded-lg">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Booking Summary & Action -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <h3 class="text-xl font-bold mb-4 text-primary">3. تفاصيل المبلغ الرمزي</h3>
+                    <div class="flex justify-between items-center bg-card p-4 rounded-lg border border-gray-200">
+                        <p class="text-lg font-semibold">السعر لكل ساعة:</p>
+                        <p id="bookingPrice" class="text-xl font-bold text-success">0 ريال</p>
+                    </div>
+                    <div class="flex justify-between items-center bg-primary/10 p-4 rounded-lg border border-primary/20 mt-3">
+                        <p class="text-xl font-semibold text-primary">الإجمالي المتوقع للحجز:</p>
+                        <p id="finalTotal" class="text-2xl font-extrabold text-primary">0 ريال</p>
+                    </div>
+
+                    <button type="submit" class="w-full btn-lg hero-gradient text-white mt-6 shadow-elevated hover:shadow-xl transition-all">
+                        تأكيد الحجز والدفع
+                    </button>
+                </div>
+
+                <button type="button" onclick="showPage('dashboard-view')" class="w-full bg-gray-300 text-gray-800 py-3 rounded-lg font-bold mt-4 hover:bg-gray-400 transition-colors">
+                    <i class="fas fa-arrow-right ml-2"></i> العودة للوحة التحكم
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ************************************ -->
+    <!-- Modals (Pop-ups) -->
+    <!-- ************************************ -->
+
+    <!-- Modal for Custom Messages/Alerts -->
+    <div id="myModal" class="modal">
+        <div class="bg-white p-8 rounded-xl shadow-elevated w-11/12 max-w-sm text-center">
+            <div id="modalIcon" class="mb-4 text-5xl text-primary"></div>
+            <h3 id="modalTitle" class="text-2xl font-bold mb-2 text-gray-800">العنوان</h3>
+            <p id="modalBody" class="text-muted-foreground mb-6">نص الرسالة</p>
+            <div id="modalActionButtons" class="flex justify-center space-x-4 space-x-reverse">
+                <!-- Action buttons (for confirm/delete) are injected here -->
+            </div>
+            <button id="modalConfirm" onclick="closeModal()" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors mt-4">
+                حسناً
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal for Add/Edit Car -->
+    <div id="carModal" class="modal">
+        <div class="bg-white p-8 rounded-xl shadow-elevated w-11/12 max-w-lg">
+            <h3 id="carModalTitle" class="text-2xl font-bold mb-6 text-primary border-b pb-3">إضافة/تعديل مركبة</h3>
+            <form id="carForm" onsubmit="handleCarFormSubmit(event)">
+                <div class="grid sm:grid-cols-2 gap-4">
+                    
+                    <div class="sm:col-span-2">
+                        <label for="ownershipType" class="block text-sm font-medium text-gray-700 mb-1">نوع الملكية</label>
+                        <select id="ownershipType" onchange="updateOwnershipDocumentField(this.value)" required class="w-full p-3 border border-gray-300 rounded-lg">
+                            <option value="ملك">ملك</option>
+                            <option value="إيجار">إيجار</option>
+                        </select>
+                    </div>
+
+                    <!-- Mock Document Upload -->
+                    <div id="ownershipDocumentField" class="sm:col-span-2 hidden bg-yellow-50 border border-yellow-300 text-yellow-800 p-3 rounded-lg text-sm">
+                        تحميل وثيقة الملكية (محاكاة)
+                    </div>
+
+                    <input type="text" id="carName" placeholder="اسم السيارة (مثال: سوناتا)" required class="w-full p-3 border border-gray-300 rounded-lg">
+                    <input type="text" id="carManufacturer" placeholder="الشركة المصنعة (مثال: هيونداي)" required class="w-full p-3 border border-gray-300 rounded-lg">
+                    
+                    <input type="text" id="carModel" placeholder="الطراز (مثال: إلنترا)" required class="w-full p-3 border border-gray-300 rounded-lg">
+                    <input type="number" id="carYear" placeholder="سنة الصنع (مثال: 2022)" required class="w-full p-3 border border-gray-300 rounded-lg" min="1990" max="2025">
+                    
+                    <input type="text" id="carColor" placeholder="اللون (مثال: أبيض)" required class="w-full p-3 border border-gray-300 rounded-lg">
+                    <input type="text" id="carRegId" placeholder="رقم استمارة الملكية (ID)" required class="w-full p-3 border border-gray-300 rounded-lg">
+
+                    <!-- Special Needs Option -->
+                    <div class="sm:col-span-2 flex items-center pt-4 border-t">
+                        <input type="checkbox" id="isSpecialNeeds" onchange="toggleSpecialNeedsUpload(this.checked)" class="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary ml-2">
+                        <label for="isSpecialNeeds" class="text-sm font-medium text-gray-700">السيارة مخصصة لذوي الاحتياجات الخاصة</label>
+                    </div>
+                    <div id="specialNeedsUpload" class="sm:col-span-2 hidden bg-green-50 border border-green-300 text-green-800 p-3 rounded-lg text-sm">
+                        يرجى رفع رخصة ذوي الإعاقة للحصول على مواقف مجانية (محاكاة)
+                    </div>
+
+                </div>
+                
+                <div class="flex justify-end space-x-4 space-x-reverse mt-6">
+                    <button type="button" onclick="document.getElementById('carModal').style.display='none'" class="bg-gray-300 text-gray-800 py-3 px-6 rounded-lg hover:bg-gray-400 transition-colors">
+                        إلغاء
+                    </button>
+                    <button type="submit" class="hero-gradient text-white py-3 px-6 rounded-lg font-bold hover:opacity-90 transition-opacity">
+                        حفظ المركبة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+</body>
+</html>
